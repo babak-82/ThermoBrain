@@ -51,11 +51,12 @@ t_eval_A    = linspace(0, 35*60, 351);
 % k_core anchored to Lee et al. (2010): tau = 1.8-4.4 min (deepest measured
 % site, 16 cm; latent period 3.1 +/- 1.3 min), central estimate 3.1 min
 tau_lo = 1.8; tau_hi = 4.4; tau_mid = 3.1;   % minutes
+taus_ab = [tau_lo, tau_hi];
 
 fprintf('Refitting R_ice_eff across tau_core = %.1f-%.1f min (Lee et al., 2010):\n', tau_lo, tau_hi);
 R_range_A = zeros(1,2);
 for i = 1:2
-    tau_min = [tau_lo, tau_hi](i); %#ok<NBRAK>
+    tau_min = taus_ab(i);
     k = 1/(tau_min*60);
     obj = @(logR) (mean_dTbrain_bolus(10^logR, k, m_ice0_A, T_core_A, T_brain0_A, P, window_A, t_eval_A) - REAL_dTbrain_A)^2;
     logR_fit = fminbnd(obj, -3, 1);
@@ -75,7 +76,7 @@ dose_m_B = [repmat(aliquot_pre,1,6), repmat(aliquot_ex,1,2)];
 
 R_range_B = zeros(1,2);
 for i = 1:2
-    tau_min = [tau_lo, tau_hi](i); %#ok<NBRAK>
+    tau_min = taus_ab(i);
     k = 1/(tau_min*60);
     obj = @(logR) (crossover_diff(10^logR, k, dose_t_B, dose_m_B, Tre0_B, Tre_end_B, t_end_B, P) - dTre_target_B)^2;
     logR_fit = fminbnd(obj, -3, 1);
@@ -255,10 +256,13 @@ end
 
 function report_recovery(name, est_vec, true_val)
     m = mean(est_vec); s = std(est_vec); med = median(est_vec);
-    q = prctile(est_vec, [25 75]);
+    sorted_vec = sort(est_vec);
+    n = numel(sorted_vec);
+    q1 = sorted_vec(max(1, round(0.25*n)));
+    q3 = sorted_vec(max(1, round(0.75*n)));
     rel_err = abs(m-true_val)/true_val*100;
     fprintf('%s: mean=%.4f, sd=%.4f, median=%.4f, IQR=[%.4f,%.4f], true=%.4f, rel.err=%.2f%%\n', ...
-            name, m, s, med, q(1), q(2), true_val, rel_err);
+            name, m, s, med, q1, q3, true_val, rel_err);
 end
 
 function total_load = simulate_optim(alpha, R_ice_eff, k_core, total_ice, Tre0, Tre_end, t_end, T_brain0, P, T_thresh, beta)
@@ -282,7 +286,7 @@ function total_load = simulate_optim(alpha, R_ice_eff, k_core, total_ice, Tre0, 
 end
 
 function a_min = min_viable_alpha(R_ice_eff, k_core, total_ice, Tre0, Tre_end, t_end, T_brain0, P)
-alphas = linspace(0,1,51);
+    alphas = linspace(0,1,51);
     loads = zeros(size(alphas));
     for i = 1:numel(alphas)
         loads(i) = simulate_optim(alphas(i), R_ice_eff, k_core, total_ice, Tre0, Tre_end, t_end, T_brain0, P, 38.0, 8.0);
